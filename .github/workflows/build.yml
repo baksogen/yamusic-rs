@@ -1,5 +1,5 @@
 # Каждый push и PR: clippy, тесты и сборки в артефактах: exe для Windows, .deb, .rpm и
-# AppImage для Linux (x86_64 и aarch64), universal-бинарник для macOS. Тег v* (например
+# AppImage для Linux (x86_64 и aarch64), .dmg и universal-бинарник для macOS. Тег v* (например
 # v1.0.1): то же и релиз со всеми файлами. Его создаёт отдельное задание после всех сборок.
 # Встроенная обновлялка на Windows ищет в релизе yamusic-rs.exe.
 name: Сборка
@@ -114,21 +114,23 @@ jobs:
 
       - run: cargo clippy --release --all-targets -- -D warnings
       - run: cargo test --release
-      - run: cargo build --release --target aarch64-apple-darwin
-      - run: cargo build --release --target x86_64-apple-darwin
-
-      - name: Универсальный бинарник
+      # Обе арки, lipo, .app с ad-hoc подписью и .dmg с симлинком /Applications.
+      - name: Универсальный .app и .dmg
         run: |
-          lipo -create -output yamusic-rs-macos-universal \
-            target/aarch64-apple-darwin/release/yamusic-rs \
-            target/x86_64-apple-darwin/release/yamusic-rs
+          tools/make_dmg.sh
+          cp target/release/yamusic-rs-universal yamusic-rs-macos-universal
           lipo -info yamusic-rs-macos-universal
-          shasum -a 256 yamusic-rs-macos-universal
+          shasum -a 256 yamusic-rs-macos-universal target/release/yamusic-rs-*.dmg
 
       - uses: actions/upload-artifact@v7
         with:
           name: macos-universal
           path: yamusic-rs-macos-universal
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-dmg
+          path: target/release/yamusic-rs-*.dmg
           archive: false
 
   # Нативный ARM-раннер на той же Ubuntu 22.04 (glibc 2.35), без qemu и кросс-тулчейна.
