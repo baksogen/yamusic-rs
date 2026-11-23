@@ -2,4 +2,5 @@
 //! rnikitin/yamusic-rs (GPL-3.0). Все функции звать из главного потока.
 
 mod objc;
+pub mod media;
 pub mod window;

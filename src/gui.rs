@@ -226,6 +226,9 @@ impl Ctx {
 
         let started = self.st.borrow().started;
         app.set_has_track(started && s.track.is_some());
+        // Карточка «Сейчас играет» в Пункте управления macOS.
+        #[cfg(target_os = "macos")]
+        crate::mac::media::now_playing(s.track.as_ref().filter(|_| started), s.playing, s.position, s.duration);
         app.set_playing(s.playing);
         app.set_loading(s.loading);
         app.set_position(s.position);
@@ -1555,9 +1558,12 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
 
     crate::api::ALLOW_EXPLICIT.store(cfg.allow_explicit, Ordering::Relaxed);
     let player = Player::spawn(notifier());
-    // macOS: «светофор» возвращается после выхода из полноэкранного режима.
+    // macOS: медиаклавиши, «Сейчас играет», «светофор» после полноэкранного режима.
     #[cfg(target_os = "macos")]
-    crate::mac::window::init_window_observers();
+    {
+        crate::mac::media::init_media_keys(player.clone());
+        crate::mac::window::init_window_observers();
+    }
     player.send(Cmd::Volume(cfg.volume));
     if cfg.log_volume {
         player.send(Cmd::Loudness(Loudness::Decibels));
