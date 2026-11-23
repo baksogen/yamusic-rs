@@ -1,14 +1,9 @@
 #!/bin/bash
 # Собирает .app-бандл для macOS: бинарник, Info.plist и иконка из icons/app.ico.
 # Источник иконки — кадр 256×256, крупные размеры растягиваются из него.
-# Использование: tools/make_app.sh [--debug] (по умолчанию release).
+# Использование: tools/make_app.sh (сборка всегда release).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-PROFILE=release
-if [ "${1:-}" = "--debug" ]; then
-  PROFILE=debug
-fi
 
 # Сборка бинарника. Три режима:
 #  - MACOS_UNIVERSAL=1 — обе арки (arm64 + x86_64) и lipo в universal (CI: раннер macOS);
@@ -17,7 +12,7 @@ fi
 VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 # Имя задаётся один раз в build.rs (APP_NAME): здесь только читаем, чтобы не дублировать.
 NAME=$(sed -n 's/^const APP_NAME: &str = "\(.*\)";/\1/p' build.rs)
-APP="target/$PROFILE/$NAME.app"
+APP="target/release/$NAME.app"
 
 if [ "${MACOS_UNIVERSAL:-}" = "1" ]; then
   # Кросс-сборка x86_64 нужна только здесь: без std под цель rustc падает на
@@ -28,19 +23,19 @@ if [ "${MACOS_UNIVERSAL:-}" = "1" ]; then
     echo "Если rustc из Homebrew, он цели не видит: поставьте rustup-тулчейн первым в PATH." >&2
     exit 1
   fi
-  cargo build "--$PROFILE" --target aarch64-apple-darwin
-  cargo build "--$PROFILE" --target x86_64-apple-darwin
-  BIN="target/$PROFILE/yamusic-rs-universal"
+  cargo build --release --target aarch64-apple-darwin
+  cargo build --release --target x86_64-apple-darwin
+  BIN="target/release/yamusic-rs-universal"
   lipo -create \
-    "target/aarch64-apple-darwin/$PROFILE/yamusic-rs" \
-    "target/x86_64-apple-darwin/$PROFILE/yamusic-rs" \
+    "target/aarch64-apple-darwin/release/yamusic-rs" \
+    "target/x86_64-apple-darwin/release/yamusic-rs" \
     -output "$BIN"
 elif [ -n "${MACOS_TARGET:-}" ]; then
-  cargo build "--$PROFILE" --target "$MACOS_TARGET"
-  BIN="target/$MACOS_TARGET/$PROFILE/yamusic-rs"
+  cargo build --release --target "$MACOS_TARGET"
+  BIN="target/$MACOS_TARGET/release/yamusic-rs"
 else
-  cargo build "--$PROFILE"
-  BIN="target/$PROFILE/yamusic-rs"
+  cargo build --release
+  BIN="target/release/yamusic-rs"
 fi
 
 rm -rf "$APP"
