@@ -434,6 +434,8 @@ export global App {
     // Статус «Слушает» в профиле Discord и что с ним сейчас.
     in property <bool> discord-on;
     in property <string> discord-status;
+    // Интерфейс рисует видеокарта (применяется после перезапуска).
+    in property <bool> gpu;
     // Запуск вместе с Windows (сразу в трее).
     in property <bool> autostart;
     // На Linux нет трея и словарей официального клиента.

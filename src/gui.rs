@@ -1238,6 +1238,9 @@ fn keep_on_screen(w: &slint::Window) {
 /// Показать окно: при запуске в трей оно ещё не создано, после закрытия в трей — спрятано.
 fn reveal(ui: &AppWindow) {
     let first = !sys::created(ui.window());
+    if first {
+        crate::config::gpu_arm();
+    }
     if let Err(e) = ui.show() {
         log(format!("окно не показалось: {e}"));
         return;
@@ -1264,6 +1267,7 @@ fn finish_reveal(weak: slint::Weak<AppWindow>, first: bool, tries: u32) {
         return;
     }
     if first {
+        Timer::single_shot(Duration::from_secs(5), crate::config::gpu_confirmed);
         apply_ui_scale(&ui);
         sys::prepare(ui.window());
         keep_on_screen(ui.window());
@@ -1590,6 +1594,7 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
         crate::discord::DiscordCfg { enabled: cfg.discord_enabled, app_id: cfg.discord_app_id.clone() },
     );
     app.set_discord_on(cfg.discord_enabled);
+    app.set_gpu(cfg.gpu);
     app.set_autostart(sys::autostart_enabled());
     app.set_check_updates(cfg.check_updates);
     app.set_allow_explicit(cfg.allow_explicit);
@@ -1994,6 +1999,7 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
                 crate::mac::app::Event::Quit => {
                     save_places(&ui, &places);
                     sys::cleanup();
+                    crate::config::gpu_confirmed();
                     std::process::exit(0);
                 }
             }
@@ -2122,6 +2128,7 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
     slint::run_event_loop_until_quit()?;
     save_places(&ui, &places);
     sys::cleanup();
+    crate::config::gpu_confirmed();
     // Фоновые потоки (аудио, сеть, обложки) не ждём: иначе процесс может остаться
     // без окна и держать мьютекс, и следующий запуск молча закроется.
     std::process::exit(0)
@@ -2908,6 +2915,15 @@ impl Ctx {
                 let mut st = self.st.borrow_mut();
                 st.cfg.discord_enabled = on;
                 st.cfg.save();
+            }
+            "gpu" => {
+                let on = !app.get_gpu();
+                app.set_gpu(on);
+                let mut st = self.st.borrow_mut();
+                st.cfg.gpu = on;
+                st.cfg.save();
+                drop(st);
+                self.toast("Применится после перезапуска");
             }
             "autostart" => {
                 let on = !app.get_autostart();

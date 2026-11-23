@@ -363,6 +363,13 @@ export component SettingsPage inherits Rectangle {
                 }
             }
             SettingItem {
+                title: T.t("Ускорение видеокартой");
+                desc: T.t("Видеокарта рисует интерфейс вместо процессора. Нужен перезапуск");
+                toggle: true;
+                on: App.gpu;
+                clicked => { App.setting("gpu"); }
+            }
+            SettingItem {
                 title: T.t("Логарифмическая громкость");
                 desc: T.t("Громкость меняется ровнее на слух, тихие уровни настраиваются точнее");
                 toggle: true;

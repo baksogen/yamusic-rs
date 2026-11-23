@@ -59,6 +59,8 @@ pub struct Config {
     pub window_maximized: bool,
     /// Место мини-плеера при выходе.
     pub mini_pos: Option<[i32; 2]>,
+    /// Интерфейс рисует видеокарта. Применяется после перезапуска.
+    pub gpu: bool,
 }
 
 /// Блок запоминается по id из скелета: он постоянный («recommended_playlists»), а заголовок
@@ -101,6 +103,7 @@ impl Default for Config {
             window_size: None,
             window_maximized: false,
             mini_pos: None,
+            gpu: true,
         }
     }
 }
@@ -131,6 +134,58 @@ pub fn cache_dir() -> PathBuf {
     return dir();
     #[cfg(not(windows))]
     return crate::sys::cache_base().join("yamusic-rs");
+}
+
+/// Рисовать ли интерфейс видеокартой. Читается до создания окна, без расшифровки токенов.
+/// Метка gpu-check ставится, когда окно впервые показано ([`gpu_arm`]), и снимается через
+/// несколько секунд или при выходе ([`gpu_confirmed`]). Осталась с прошлого раза — тот
+/// запуск упал с открытым окном, и видеокарта выключается в настройках.
+#[cfg(not(target_os = "android"))]
+pub fn gpu() -> bool {
+    let path = dir().join("config.json");
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    if !serde_json::from_str::<Config>(&text).unwrap_or_default().gpu {
+        return false;
+    }
+    let mark = dir().join("gpu-check");
+    if !mark.exists() {
+        GPU_ON.store(true, std::sync::atomic::Ordering::Relaxed);
+        return true;
+    }
+    log("прошлый запуск с видеокартой упал: дальше интерфейс рисует процессор");
+    // Правится только поле gpu: через Config::save токен без связки ключей потерялся бы.
+    let mut v = serde_json::from_str::<serde_json::Value>(&text).unwrap_or_default();
+    match v.as_object_mut() {
+        Some(o) => {
+            o.insert("gpu".into(), false.into());
+        }
+        None => v = serde_json::json!({ "gpu": false }),
+    }
+    let tmp = dir().join("config.json.tmp");
+    if let Ok(s) = serde_json::to_string_pretty(&v) {
+        if write_private(&tmp, s.as_bytes()).is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
+    }
+    let _ = std::fs::remove_file(&mark);
+    false
+}
+
+#[cfg(not(target_os = "android"))]
+static GPU_ON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Окно сейчас впервые создастся: с этого момента видеокарта рисует.
+#[cfg(not(target_os = "android"))]
+pub fn gpu_arm() {
+    if GPU_ON.load(std::sync::atomic::Ordering::Relaxed) {
+        let _ = std::fs::write(dir().join("gpu-check"), b"");
+    }
+}
+
+/// Окно с видеокартой проработало несколько секунд или приложение закрылось само.
+#[cfg(not(target_os = "android"))]
+pub fn gpu_confirmed() {
+    let _ = std::fs::remove_file(dir().join("gpu-check"));
 }
 
 impl Config {

@@ -55,10 +55,15 @@ fn main() -> Result<(), slint::PlatformError> {
         sys::wake_existing();
         return Ok(());
     }
-    // Skia без видеокарты: память не зависит от драйвера (с OpenGL или D3D окно занимает
-    // в 2–3 раза больше). Режим работы («Плавный» или «Лёгкий») меняет только анимации
-    // и кэши и переключается на лету (gui::apply_mode).
-    slint::BackendSelector::new().backend_name("winit".into()).renderer_name("skia-software".into()).select()?;
+    // По умолчанию интерфейс рисует видеокарта: «skia» перебирает wgpu (Metal, DX12, Vulkan),
+    // OpenGL (Linux) и, если ничего не поднялось, рисует процессором. В настройках можно
+    // оставить только процессор: тогда память не зависит от драйвера (с видеокартой окно
+    // занимает в 2–3 раза больше). Режим работы («Плавный» или «Лёгкий») меняет только
+    // анимации и кэши и переключается на лету (gui::apply_mode).
+    // Откат делает сам Slint при создании окна, повторный select() невозможен (winit
+    // не создаёт цикл событий второй раз).
+    let renderer = if config::gpu() { "skia" } else { "skia-software" };
+    slint::BackendSelector::new().backend_name("winit".into()).renderer_name(renderer.into()).select()?;
     // По app_id (Wayland) и WM_CLASS (X11) окружение находит .desktop и значок.
     #[cfg(target_os = "linux")]
     slint::set_xdg_app_id("yamusic-rs")?;
