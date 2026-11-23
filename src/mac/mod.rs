@@ -4,4 +4,5 @@
 mod objc;
 pub mod app;
 pub mod media;
+pub mod menu;
 pub mod window;

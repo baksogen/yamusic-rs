@@ -229,6 +229,8 @@ impl Ctx {
         // Карточка «Сейчас играет» в Пункте управления macOS.
         #[cfg(target_os = "macos")]
         crate::mac::media::now_playing(s.track.as_ref().filter(|_| started), s.playing, s.position, s.duration);
+        #[cfg(target_os = "macos")]
+        crate::mac::menu::set_playing(s.playing);
         app.set_playing(s.playing);
         app.set_loading(s.loading);
         app.set_position(s.position);
@@ -1983,12 +1985,30 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
         });
         let weak = ui.as_weak();
         let places = places.clone();
+        let menu_places = places.clone();
         crate::mac::app::install(move |e| {
             let Some(ui) = weak.upgrade() else { return };
             match e {
                 crate::mac::app::Event::Reopen => reveal(&ui),
                 crate::mac::app::Event::Quit => {
                     save_places(&ui, &places);
+                    sys::cleanup();
+                    std::process::exit(0);
+                }
+            }
+        });
+        let weak = ui.as_weak();
+        let p = player.clone();
+        crate::mac::menu::install(move |e| {
+            use crate::mac::menu::Event;
+            let Some(ui) = weak.upgrade() else { return };
+            match e {
+                Event::PlayPause => ui.global::<App>().invoke_play_pause(),
+                Event::Prev => p.send(Cmd::Prev),
+                Event::Next => p.send(Cmd::Next),
+                Event::Show => reveal(&ui),
+                Event::Quit => {
+                    save_places(&ui, &menu_places);
                     sys::cleanup();
                     std::process::exit(0);
                 }
