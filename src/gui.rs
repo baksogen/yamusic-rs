@@ -1555,6 +1555,9 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
 
     crate::api::ALLOW_EXPLICIT.store(cfg.allow_explicit, Ordering::Relaxed);
     let player = Player::spawn(notifier());
+    // macOS: «светофор» возвращается после выхода из полноэкранного режима.
+    #[cfg(target_os = "macos")]
+    crate::mac::window::init_window_observers();
     player.send(Cmd::Volume(cfg.volume));
     if cfg.log_volume {
         player.send(Cmd::Loudness(Loudness::Decibels));
@@ -1583,6 +1586,9 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
     app.set_check_updates(cfg.check_updates);
     app.set_allow_explicit(cfg.allow_explicit);
     app.set_linux(cfg!(target_os = "linux"));
+    // macOS: нативный «светофор» вместо кнопок окна; страницы сдвинуты под него.
+    app.set_mac(cfg!(target_os = "macos"));
+    app.set_chrome_top(if cfg!(target_os = "macos") { 24.0 } else { 0.0 });
     app.set_translations(crate::i18n::available());
     app.set_download_dir(music_dir(&cfg).display().to_string().into());
     app.set_download_flac(cfg.download_flac);
@@ -1846,6 +1852,8 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
             let was_max = w.is_maximized();
             pl.normal.set(Some((window_pos(w), w.size(), was_max)));
             app.set_mini(true);
+            #[cfg(target_os = "macos")]
+            crate::mac::window::set_traffic_lights_hidden(sys::ns_view(w), true);
             app.set_maximized(false);
             // KWin в ответ на set_maximized(false) присылает текущий размер и перебивает размер плашки.
             if was_max {
@@ -1879,6 +1887,8 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
         } else {
             pl.mini.set(window_pos(w).or(pl.mini.get()));
             app.set_mini(false);
+            #[cfg(target_os = "macos")]
+            crate::mac::window::set_traffic_lights_hidden(sys::ns_view(w), false);
             w.with_winit_window(|ww| ww.set_min_inner_size(Some(LogicalSize::new(960.0, 640.0))));
             match pl.normal.take() {
                 Some((pos, size, max)) => {
@@ -1951,7 +1961,9 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
         });
         install_tray(&ui, &player);
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    app.on_close(quit);
+    #[cfg(target_os = "linux")]
     {
         app.on_close(quit);
         let weak = ui.as_weak();

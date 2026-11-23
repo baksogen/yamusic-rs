@@ -401,8 +401,8 @@ export component SettingsPage inherits Rectangle {
                 clicked => { App.setting("discord"); }
             }
             SettingItem {
-                title: App.linux ? T.t("Запускать вместе с системой") : T.t("Запускать вместе с Windows");
-                desc: App.linux ? T.t("Приложение откроется при входе в систему") : T.t("Приложение откроется в трее, без окна");
+                title: (App.linux || App.mac) ? T.t("Запускать вместе с системой") : T.t("Запускать вместе с Windows");
+                desc: (App.linux || App.mac) ? T.t("Приложение откроется при входе в систему") : T.t("Приложение откроется в трее, без окна");
                 toggle: true;
                 on: App.autostart;
                 clicked => { App.setting("autostart"); }

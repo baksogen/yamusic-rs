@@ -17,6 +17,8 @@ mod history;
 mod i18n;
 mod images;
 mod landing;
+#[cfg(target_os = "macos")]
+mod mac;
 #[cfg(target_os = "linux")]
 mod mpris;
 mod net;
@@ -27,6 +29,7 @@ mod secret;
 mod stream;
 #[cfg_attr(windows, path = "sys/windows.rs")]
 #[cfg_attr(target_os = "linux", path = "sys/linux.rs")]
+#[cfg_attr(target_os = "macos", path = "sys/macos.rs")]
 mod sys;
 mod tags;
 #[cfg(windows)]

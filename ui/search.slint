@@ -113,8 +113,8 @@ export component SearchPage inherits Rectangle {
 
     // Шапка: поле поиска и вкладки. Остаётся на месте при прокрутке.
     Rectangle {
-        y: 0;
-        height: header-h - 24px;
+        y: -App.chrome-top;
+        height: header-h - 24px + App.chrome-top;
         background: Theme.background-color-primary-enabled-content;
 
         NavArrows {

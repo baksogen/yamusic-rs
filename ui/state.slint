@@ -157,6 +157,10 @@ export global T {
 export global App {
     in-out property <Page> page: Page.wave;
     in property <bool> maximized;
+    // macOS: нативный «светофор» вместо кнопок окна (src/mac/window.rs).
+    in property <bool> mac;
+    // macOS: запас сверху под «светофор»; страницы сдвинуты на него. Иначе 0.
+    in property <length> chrome-top;
     // Слой на всё окно на один кадр: Slint перерисовывает место, где элемент появился и исчез,
     // так окно рисуется целиком после переноса на другой монитор.
     in property <bool> repaint;

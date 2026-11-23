@@ -61,8 +61,8 @@ export component ListPage inherits Rectangle {
     property <length> row-h: 56px;
 
     Rectangle {
-        y: 0;
-        height: 340px;
+        y: -App.chrome-top;
+        height: 340px + App.chrome-top;
         background: @linear-gradient(180deg, App.list-tint 0%, App.list-tint.with-alpha(0) 100%);
     }
 

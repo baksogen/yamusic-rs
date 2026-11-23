@@ -42,8 +42,8 @@ export component ArtistPage inherits Rectangle {
     property <length> text-x: pad + 204px + 28px;
 
     Rectangle {
-        y: 0;
-        height: 340px;
+        y: -App.chrome-top;
+        height: 340px + App.chrome-top;
         background: @linear-gradient(180deg, App.ar-tint 0%, App.ar-tint.with-alpha(0) 100%);
     }
 

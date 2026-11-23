@@ -13,6 +13,11 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         resources::embed();
     }
+    // macOS: objc runtime и Foundation для прямых вызовов в src/mac.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!("cargo:rustc-link-lib=objc");
+        println!("cargo:rustc-link-lib=framework=Foundation");
+    }
 }
 
 /// Ресурсы exe: описание (его показывают диспетчер задач и свойства файла) и значок из

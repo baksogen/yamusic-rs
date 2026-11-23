@@ -15,12 +15,28 @@ pub struct Asar {
 }
 
 /// Официального клиента под Linux нет, там ассеты только с сайта.
+/// На macOS клиент — .app в /Applications или ~/Applications.
 fn asar_path() -> Option<PathBuf> {
-    if cfg!(not(windows)) {
-        return None;
+    #[cfg(windows)]
+    {
+        let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
+        Some(PathBuf::from(local).join("Programs").join("YandexMusic").join("resources").join("app.asar"))
     }
-    let local = std::env::var("LOCALAPPDATA").unwrap_or_default();
-    Some(PathBuf::from(local).join("Programs").join("YandexMusic").join("resources").join("app.asar"))
+    #[cfg(target_os = "macos")]
+    {
+        let mut v = vec![
+            PathBuf::from("/Applications/Яндекс Музыка.app/Contents/Resources/app.asar"),
+            PathBuf::from("/Applications/YandexMusic.app/Contents/Resources/app.asar"),
+        ];
+        if let Ok(home) = std::env::var("HOME") {
+            v.push(PathBuf::from(home).join("Applications/Яндекс Музыка.app/Contents/Resources/app.asar"));
+        }
+        v.into_iter().find(|p| p.exists())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        None
+    }
 }
 
 impl Asar {
