@@ -139,6 +139,31 @@ mod keyring {
 #[cfg(target_os = "linux")]
 const IN_KEYRING: &str = "keyring:";
 
+/// macOS: generic password в связке «Вход». Доступ привязан к подписи приложения:
+/// после обновления ad-hoc-сборки macOS один раз спросит разрешение.
+#[cfg(target_os = "macos")]
+mod keychain {
+    use crate::config::log;
+    use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
+
+    const SERVICE: &str = "io.github.baksogen.yamusic-rs";
+
+    pub fn store(name: &str, secret: &str) -> bool {
+        set_generic_password(SERVICE, name, secret.as_bytes()).map_err(|e| log(format!("Keychain: запись {name}: {e}"))).is_ok()
+    }
+
+    pub fn load(name: &str) -> Option<String> {
+        String::from_utf8(get_generic_password(SERVICE, name).ok()?).ok()
+    }
+
+    pub fn remove(name: &str) {
+        let _ = delete_generic_password(SERVICE, name);
+    }
+}
+
+#[cfg(target_os = "macos")]
+const IN_KEYCHAIN: &str = "keychain:";
+
 /// Спрятать секрет для хранения в конфиге. `name` различает секреты в связке ключей Linux,
 /// DPAPI на Windows он не нужен. None — спрятать негде.
 pub fn seal(name: &str, plain: &str) -> Option<String> {
@@ -151,8 +176,12 @@ pub fn seal(name: &str, plain: &str) -> Option<String> {
     {
         keyring::store(name, plain).then(|| format!("{IN_KEYRING}{name}"))
     }
+    #[cfg(target_os = "macos")]
+    {
+        keychain::store(name, plain).then(|| format!("{IN_KEYCHAIN}{name}"))
+    }
     // Android: config.json и так лежит в личной папке приложения, другим приложениям её не прочесть.
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     {
         let _ = (name, plain);
         None
@@ -170,7 +199,11 @@ pub fn open(sealed: &str) -> Option<String> {
     {
         keyring::load(sealed.trim().strip_prefix(IN_KEYRING)?)
     }
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(target_os = "macos")]
+    {
+        keychain::load(sealed.trim().strip_prefix(IN_KEYCHAIN)?)
+    }
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     {
         let _ = sealed;
         None
@@ -181,7 +214,9 @@ pub fn open(sealed: &str) -> Option<String> {
 pub fn forget(name: &str) {
     #[cfg(target_os = "linux")]
     keyring::remove(name);
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    keychain::remove(name);
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     let _ = name;
 }
 
@@ -193,5 +228,19 @@ mod tests {
         assert!(!s.contains("y0_secret"));
         assert_eq!(super::open(&s).as_deref(), Some("y0_secret"));
         assert_eq!(super::open("AAAA"), None);
+    }
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests_macos {
+    /// Запись, чтение и удаление в настоящем Keychain под отдельным именем.
+    #[test]
+    fn keychain_roundtrip() {
+        let name = "selftest";
+        let sealed = super::seal(name, "секрет-123").expect("Keychain не принял запись");
+        assert_eq!(sealed, "keychain:selftest");
+        assert_eq!(super::open(&sealed).as_deref(), Some("секрет-123"));
+        super::forget(name);
+        assert_eq!(super::open(&sealed), None);
     }
 }
