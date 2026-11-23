@@ -56,7 +56,7 @@ pub(crate) unsafe fn msg_responds(obj: Id, sel: Sel) -> bool {
 
 pub(crate) unsafe fn msg_string(cls: Id, s: &str) -> Id {
     let f: unsafe extern "C" fn(Id, Sel, *const c_char) -> Id = std::mem::transmute(objc_msgSend as unsafe extern "C" fn() as usize);
-    f(cls, sel_registerName(c("stringWithUTF8String:").as_ptr()), c(s).as_ptr())
+    f(cls, sel_registerName(c("stringWithUTF8String:").as_ptr()), c(&s.replace('\0', "")).as_ptr())
 }
 
 pub(crate) unsafe fn msg_double(obj: Id, sel: &str) -> f64 {

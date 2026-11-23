@@ -1974,9 +1974,11 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
     {
         let weak = ui.as_weak();
         let p = player.clone();
+        let close_places = places.clone();
         app.on_close(move || {
             if p.state().playing {
                 if let Some(ui) = weak.upgrade() {
+                    save_places(&ui, &close_places);
                     let _ = ui.hide();
                     return;
                 }
@@ -1985,7 +1987,6 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
         });
         let weak = ui.as_weak();
         let places = places.clone();
-        let menu_places = places.clone();
         crate::mac::app::install(move |e| {
             let Some(ui) = weak.upgrade() else { return };
             match e {
@@ -2007,11 +2008,7 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
                 Event::Prev => p.send(Cmd::Prev),
                 Event::Next => p.send(Cmd::Next),
                 Event::Show => reveal(&ui),
-                Event::Quit => {
-                    save_places(&ui, &menu_places);
-                    sys::cleanup();
-                    std::process::exit(0);
-                }
+                Event::Quit => quit(),
             }
         });
     }

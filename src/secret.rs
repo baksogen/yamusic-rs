@@ -145,18 +145,45 @@ const IN_KEYRING: &str = "keyring:";
 mod keychain {
     use crate::config::log;
     use security_framework::passwords::{delete_generic_password, get_generic_password, set_generic_password};
+    use std::collections::HashMap;
+    use std::sync::Mutex;
 
     const SERVICE: &str = "io.github.baksogen.yamusic-rs";
 
+    /// Что уже лежит в связке: конфиг сохраняется на каждое изменение настроек, а запись в Keychain — отдельный вызов.
+    static STORED: Mutex<Option<HashMap<String, String>>> = Mutex::new(None);
+
+    fn cached(f: impl FnOnce(&mut HashMap<String, String>)) {
+        f(STORED.lock().unwrap_or_else(|e| e.into_inner()).get_or_insert_with(HashMap::new));
+    }
+
     pub fn store(name: &str, secret: &str) -> bool {
-        set_generic_password(SERVICE, name, secret.as_bytes()).map_err(|e| log(format!("Keychain: запись {name}: {e}"))).is_ok()
+        let mut same = false;
+        cached(|m| same = m.get(name).is_some_and(|v| v == secret));
+        if same {
+            return true;
+        }
+        let saved = set_generic_password(SERVICE, name, secret.as_bytes()).map_err(|e| log(format!("Keychain: запись {name}: {e}"))).is_ok();
+        if saved {
+            cached(|m| {
+                m.insert(name.into(), secret.into());
+            });
+        }
+        saved
     }
 
     pub fn load(name: &str) -> Option<String> {
-        String::from_utf8(get_generic_password(SERVICE, name).ok()?).ok()
+        let secret = String::from_utf8(get_generic_password(SERVICE, name).ok()?).ok()?;
+        cached(|m| {
+            m.insert(name.into(), secret.clone());
+        });
+        Some(secret)
     }
 
     pub fn remove(name: &str) {
+        cached(|m| {
+            m.remove(name);
+        });
         let _ = delete_generic_password(SERVICE, name);
     }
 }

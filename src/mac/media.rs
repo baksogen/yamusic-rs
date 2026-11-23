@@ -170,6 +170,7 @@ pub fn now_playing(track: Option<&Track>, playing: bool, position: f32, duration
         let Some(t) = track else {
             if LAST.with(|l| l.borrow_mut().take()).is_some() {
                 msg_set_id(center, "setNowPlayingInfo:", std::ptr::null_mut());
+                msg_set_ulong(center, "setPlaybackState:", 3);
             }
             return;
         };
@@ -211,5 +212,6 @@ pub fn now_playing(track: Option<&Track>, playing: bool, position: f32, duration
         ];
         let dict = msg_dict(objc_getClass(c("NSDictionary").as_ptr()), values.as_ptr(), keys.as_ptr(), keys.len() as c_ulong);
         msg_set_id(center, "setNowPlayingInfo:", dict);
+        msg_set_ulong(center, "setPlaybackState:", if playing { 1 } else { 2 });
     }
 }
