@@ -96,14 +96,10 @@ extern "C" fn on_prev(_self: Id, _sel: Sel, _cmd: Id) -> c_long {
 }
 
 extern "C" fn on_seek(_self: Id, _sel: Sel, event: Id) -> c_long {
-    unsafe {
-        let n = msg0(event, "playbackPosition");
-        if !n.is_null() {
-            let pos = msg_double(n, "doubleValue");
-            if let Some(p) = player() {
-                p.send(Cmd::Seek(pos as f32));
-            }
-        }
+    // MPChangePlaybackPositionCommandEvent.positionTime — NSTimeInterval (double), не объект.
+    let pos = unsafe { msg_double(event, "positionTime") };
+    if let Some(p) = player() {
+        p.send(Cmd::Seek(pos as f32));
     }
     STATUS_SUCCESS
 }
