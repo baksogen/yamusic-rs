@@ -178,53 +178,9 @@ jobs:
           path: ${{ steps.pkg.outputs.rpm }}
           archive: false
 
-  # APK для телефонов (arm64-v8a, Android 8+). Ключ выпуска лежит в секретах репозитория,
-  # без него по тегу сборка падает: APK с другой подписью не встанет поверх уже установленного.
-  android:
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Ключ выпуска есть
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
-        run: |
-          if [ -z "$ANDROID_KEYSTORE" ]; then
-            echo "::error::Нет секрета ANDROID_KEYSTORE"
-            exit 1
-          fi
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-linux-android
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: android -> target
-
-      - name: APK
-        env:
-          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-        run: tools/apk.sh
-
-      - name: SHA-256
-        run: sha256sum target/apk/yamusic-rs-arm64-v8a.apk
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: apk-arm64-v8a
-          path: target/apk/yamusic-rs-arm64-v8a.apk
-          archive: false
-
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, linux, linux-arm64, android, macos]
+    needs: [windows, linux, linux-arm64, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
