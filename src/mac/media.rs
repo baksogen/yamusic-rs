@@ -26,11 +26,6 @@ fn ensure_media_player() {
     });
 }
 
-pub(crate) unsafe fn msg_set_id(obj: Id, sel: &str, arg: Id) {
-    let f: unsafe extern "C" fn(Id, Sel, Id) = std::mem::transmute(objc_msgSend as unsafe extern "C" fn() as usize);
-    f(obj, sel_registerName(c(sel).as_ptr()), arg);
-}
-
 unsafe fn msg_target_action(obj: Id, sel: &str, target: Id, action: Sel) {
     let f: unsafe extern "C" fn(Id, Sel, Id, Sel) = std::mem::transmute(objc_msgSend as unsafe extern "C" fn() as usize);
     f(obj, sel_registerName(c(sel).as_ptr()), target, action);

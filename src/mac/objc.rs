@@ -63,3 +63,8 @@ pub(crate) unsafe fn msg_double(obj: Id, sel: &str) -> f64 {
     let f: unsafe extern "C" fn(Id, Sel) -> f64 = std::mem::transmute(objc_msgSend as unsafe extern "C" fn() as usize);
     f(obj, sel_registerName(c(sel).as_ptr()))
 }
+
+pub(crate) unsafe fn msg_set_id(obj: Id, sel: &str, arg: Id) {
+    let f: unsafe extern "C" fn(Id, Sel, Id) = std::mem::transmute(objc_msgSend as unsafe extern "C" fn() as usize);
+    f(obj, sel_registerName(c(sel).as_ptr()), arg);
+}

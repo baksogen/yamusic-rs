@@ -1967,8 +1967,29 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
         });
         install_tray(&ui, &player);
     }
+    // macOS: пока играет трек, закрытие прячет окно, приложение остаётся в Dock.
     #[cfg(target_os = "macos")]
-    app.on_close(quit);
+    {
+        let weak = ui.as_weak();
+        let p = player.clone();
+        app.on_close(move || {
+            if p.state().playing {
+                if let Some(ui) = weak.upgrade() {
+                    let _ = ui.hide();
+                    return;
+                }
+            }
+            quit();
+        });
+        let weak = ui.as_weak();
+        crate::mac::app::install(move |e| {
+            let Some(ui) = weak.upgrade() else { return };
+            match e {
+                crate::mac::app::Event::Reopen => reveal(&ui),
+                crate::mac::app::Event::Quit => quit(),
+            }
+        });
+    }
     #[cfg(target_os = "linux")]
     {
         app.on_close(quit);
@@ -2003,6 +2024,12 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
             }
             WindowEvent::MouseInput { state: ElementState::Pressed, button: MouseButton::Forward, .. } => {
                 with_ctx(|c| c.go_forward());
+                EventResult::PreventDefault
+            }
+            // Красная кнопка «светофора»: та же логика, что у App.close.
+            #[cfg(target_os = "macos")]
+            WindowEvent::CloseRequested => {
+                with_ctx(|c| c.ui().global::<App>().invoke_close());
                 EventResult::PreventDefault
             }
             WindowEvent::ScaleFactorChanged { .. } => {
