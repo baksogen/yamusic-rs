@@ -18,15 +18,16 @@ thread_local! {
     static HANDLER: RefCell<Option<Handler>> = const { RefCell::new(None) };
 }
 
-/// Из обработчика AppKit в Slint не заходим: откладываем в цикл событий.
-fn fire(e: Event) {
-    let _ = slint::invoke_from_event_loop(move || {
+/// Из обработчика AppKit в Slint не заходим: откладываем в цикл событий. false, если цикла нет.
+fn fire(e: Event) -> bool {
+    slint::invoke_from_event_loop(move || {
         HANDLER.with(|h| {
             if let Some(f) = h.borrow().as_ref() {
                 f(e);
             }
         })
-    });
+    })
+    .is_ok()
 }
 
 /// applicationShouldHandleReopen:hasVisibleWindows:
@@ -35,11 +36,9 @@ extern "C" fn should_reopen(_s: Id, _sel: Sel, _app: Id, _visible: bool) -> bool
     true
 }
 
-/// applicationShouldTerminate: — NSTerminateLater (2): система ждёт, а процесс
-/// завершает gui::run после сохранения окна. Cancel сорвал бы выход из системы.
+/// applicationShouldTerminate: — NSTerminateLater (2), процесс завершает обработчик Quit; без цикла событий — NSTerminateNow (1).
 extern "C" fn should_terminate(_s: Id, _sel: Sel, _app: Id) -> usize {
-    fire(Event::Quit);
-    2
+    if fire(Event::Quit) { 2 } else { 1 }
 }
 
 /// Звать из главного потока после создания окна: делегат winit уже установлен.

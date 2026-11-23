@@ -1982,11 +1982,16 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
             quit();
         });
         let weak = ui.as_weak();
+        let places = places.clone();
         crate::mac::app::install(move |e| {
             let Some(ui) = weak.upgrade() else { return };
             match e {
                 crate::mac::app::Event::Reopen => reveal(&ui),
-                crate::mac::app::Event::Quit => quit(),
+                crate::mac::app::Event::Quit => {
+                    save_places(&ui, &places);
+                    sys::cleanup();
+                    std::process::exit(0);
+                }
             }
         });
     }
