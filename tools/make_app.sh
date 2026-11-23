@@ -1,5 +1,5 @@
 #!/bin/bash
-# Собирает .app-бандл для macOS: бинарник, Info.plist и иконка из icons/app.ico.
+# Собирает .app-бандл для macOS: бинарник, Info.plist и иконка из packaging/icons/256.png.
 # Источник иконки — кадр 256×256, крупные размеры растягиваются из него.
 # Использование: tools/make_app.sh (сборка всегда release).
 set -euo pipefail
@@ -42,12 +42,12 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/yamusic-rs"
 
-# Иконка: app.ico → PNG 256 → все размеры → icns.
+# Иконка: packaging/icons/256.png → все размеры → icns.
 ICONSET="$APP/Contents/Resources/AppIcon.iconset"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP" "$ICONSET"' EXIT
 mkdir -p "$ICONSET"
-sips -s format png icons/app.ico --out "$TMP/base.png" >/dev/null
+cp packaging/icons/256.png "$TMP/base.png"
 for n in 16 32 64 128 256 512 1024; do
   sips -z "$n" "$n" "$TMP/base.png" --out "$TMP/$n.png" >/dev/null
 done
