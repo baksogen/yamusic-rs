@@ -112,6 +112,13 @@ jobs:
           targets: aarch64-apple-darwin, x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
 
+      # Гарантируем, что x86_64 таргет установлен и доступен (dtolnay/rust-toolchain
+      # на macOS иногда не кладёт его в PATH первым).
+      - name: Ensure x86_64 target
+        run: |
+          rustup target add x86_64-apple-darwin || true
+          rustc --print target-libdir --target x86_64-apple-darwin
+
       - run: cargo clippy --release --all-targets -- -D warnings
       - run: cargo test --release
       # Обе арки, lipo, .app с ad-hoc подписью и .dmg с симлинком /Applications.

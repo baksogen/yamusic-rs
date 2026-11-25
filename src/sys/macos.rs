@@ -25,6 +25,11 @@ pub fn raise(w: &slint::Window) {
     w.with_winit_window(|w| w.focus_window());
 }
 
+/// Свернуть окно в Dock.
+pub fn minimize(w: &slint::Window) {
+    w.set_minimized(true);
+}
+
 pub fn scale(w: &slint::Window) -> f32 {
     w.with_winit_window(|w| w.scale_factor() as f32).unwrap_or(1.0)
 }

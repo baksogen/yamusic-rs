@@ -19,9 +19,11 @@ if [ "${MACOS_UNIVERSAL:-}" = "1" ]; then
   # «can't find crate for core», поэтому проверяем заранее и подсказываем лечение.
   LIBDIR=$(rustc --print target-libdir --target x86_64-apple-darwin 2>/dev/null || true)
   if [ -z "$LIBDIR" ] || [ ! -d "$LIBDIR" ]; then
-    echo "Нет std под x86_64-apple-darwin: rustup target add x86_64-apple-darwin" >&2
-    echo "Если rustc из Homebrew, он цели не видит: поставьте rustup-тулчейн первым в PATH." >&2
-    exit 1
+    echo "x86_64-apple-darwin std не найдена, пробуем доустановить..." >&2
+    rustup target add x86_64-apple-darwin || {
+      echo "Не удалось установить x86_64-apple-darwin. Если rustc из Homebrew, поставьте rustup-тулчейн первым в PATH." >&2
+      exit 1
+    }
   fi
   cargo build --release --target aarch64-apple-darwin
   cargo build --release --target x86_64-apple-darwin
