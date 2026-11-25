@@ -1,7 +1,7 @@
 # Каждый push и PR: clippy, тесты и сборки в артефактах: exe для Windows, .deb, .rpm и
-# AppImage для Linux (x86_64 и aarch64), .dmg и universal-бинарник для macOS. Тег v* (например
-# v1.0.1): то же и релиз со всеми файлами. Его создаёт отдельное задание после всех сборок.
-# Встроенная обновлялка на Windows ищет в релизе yamusic-rs.exe.
+# AppImage для Linux (x86_64 и aarch64), .dmg и universal-бинарник для macOS, APK для Android.
+# Тег v* (например v1.0.1): то же и релиз со всеми файлами. Его создаёт отдельное задание после всех сборок.
+# Встроенная обновлялка на Windows ищет в релизе yamusic-rs.exe, на Android — APK.
 name: Сборка
 
 on:
@@ -101,45 +101,6 @@ jobs:
           path: ${{ steps.pkg.outputs.rpm }}
           archive: false
 
-  # Универсальный бинарник (aarch64 + x86_64) через lipo: один файл работает на любом Маке.
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
-
-      # Гарантируем, что x86_64 таргет установлен и доступен (dtolnay/rust-toolchain
-      # на macOS иногда не кладёт его в PATH первым).
-      - name: Ensure x86_64 target
-        run: |
-          rustup target add x86_64-apple-darwin || true
-          rustc --print target-libdir --target x86_64-apple-darwin
-
-      - run: cargo clippy --release --all-targets -- -D warnings
-      - run: cargo test --release
-      # Обе арки, lipo, .app с ad-hoc подписью и .dmg с симлинком /Applications.
-      - name: Универсальный .app и .dmg
-        run: |
-          tools/make_dmg.sh
-          cp target/release/yamusic-rs-universal yamusic-rs-macos-universal
-          lipo -info yamusic-rs-macos-universal
-          shasum -a 256 yamusic-rs-macos-universal target/release/yamusic-rs-*.dmg
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: macos-universal
-          path: yamusic-rs-macos-universal
-          archive: false
-      - uses: actions/upload-artifact@v7
-        with:
-          name: macos-dmg
-          path: target/release/yamusic-rs-*.dmg
-          archive: false
-
   # Нативный ARM-раннер на той же Ubuntu 22.04 (glibc 2.35), без qemu и кросс-тулчейна.
   # Clippy и тесты уже прошли на x86_64, здесь только сборка и пакеты.
   linux-arm64:
@@ -187,9 +148,92 @@ jobs:
           path: ${{ steps.pkg.outputs.rpm }}
           archive: false
 
+  # Универсальный бинарник (aarch64 + x86_64) через lipo: один файл работает на любом Маке.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+
+      # Гарантируем, что x86_64 таргет установлен и доступен (dtolnay/rust-toolchain
+      # на macOS иногда не кладёт его в PATH первым).
+      - name: Ensure x86_64 target
+        run: |
+          rustup target add x86_64-apple-darwin || true
+          rustc --print target-libdir --target x86_64-apple-darwin
+
+      - run: cargo clippy --release --all-targets -- -D warnings
+      - run: cargo test --release
+      # Обе арки, lipo, .app с ad-hoc подписью и .dmg с симлинком /Applications.
+      - name: Универсальный .app и .dmg
+        run: |
+          tools/make_dmg.sh
+          cp target/release/yamusic-rs-universal yamusic-rs-macos-universal
+          lipo -info yamusic-rs-macos-universal
+          shasum -a 256 yamusic-rs-macos-universal target/release/yamusic-rs-*.dmg
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-universal
+          path: yamusic-rs-macos-universal
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-dmg
+          path: target/release/yamusic-rs-*.dmg
+          archive: false
+
+  # APK для телефонов (arm64-v8a, Android 8+). Ключ выпуска лежит в секретах репозитория,
+  # без него по тегу сборка падает: APK с другой подписью не встанет поверх уже установленного.
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Ключ выпуска есть
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE" ]; then
+            echo "::error::Нет секрета ANDROID_KEYSTORE"
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: android -> target
+
+      - name: APK
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: tools/apk.sh
+
+      - name: SHA-256
+        run: sha256sum target/apk/yamusic-rs-arm64-v8a.apk
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: apk-arm64-v8a
+          path: target/apk/yamusic-rs-arm64-v8a.apk
+          archive: false
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [windows, linux, linux-arm64, macos]
+    needs: [windows, linux, linux-arm64, macos, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
