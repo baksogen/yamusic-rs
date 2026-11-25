@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
 
+/// Длина кроссфейда, когда его включают в настройках.
+pub const CROSSFADE_SECS: u32 = 6;
+
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Config {
@@ -53,6 +56,10 @@ pub struct Config {
     pub allow_explicit: bool,
     /// Добавлять треки в конец плейлиста, а не в начало.
     pub add_to_end: bool,
+    /// Пятно «Моей волны» движется. Выключено: анимация всё время тратит процессор.
+    pub wave_motion: bool,
+    /// Сколько секунд треки перетекают друг в друга; ноль — без кроссфейда.
+    pub crossfade_secs: u32,
     /// Обычное окно при выходе, в пикселях экрана. На Wayland места окна не узнать.
     pub window_pos: Option<[i32; 2]>,
     pub window_size: Option<[u32; 2]>,
@@ -61,6 +68,8 @@ pub struct Config {
     pub mini_pos: Option<[i32; 2]>,
     /// Интерфейс рисует видеокарта. Применяется после перезапуска.
     pub gpu: bool,
+    /// Горячие клавиши, которые поменял пользователь: действие → клавиши по ячейкам, "" — пусто.
+    pub hotkeys: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 /// Блок запоминается по id из скелета: он постоянный («recommended_playlists»), а заголовок
@@ -99,11 +108,14 @@ impl Default for Config {
             check_updates: true,
             allow_explicit: true,
             add_to_end: false,
+            wave_motion: false,
+            crossfade_secs: 0,
             window_pos: None,
             window_size: None,
             window_maximized: false,
             mini_pos: None,
             gpu: true,
+            hotkeys: Default::default(),
         }
     }
 }
@@ -189,11 +201,23 @@ pub fn gpu_confirmed() {
 }
 
 impl Config {
+    /// Длина кроссфейда.
+    pub fn crossfade(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.crossfade_secs.into())
+    }
+
     pub fn load() -> Self {
-        let mut c: Config = std::fs::read_to_string(dir().join("config.json"))
-            .ok()
-            .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
+        let path = dir().join("config.json");
+        let mut c = match std::fs::read_to_string(&path) {
+            Ok(s) => Self::parse(&s).unwrap_or_else(|| {
+                // Испорченный файл не затираем молча: копия остаётся рядом.
+                let _ = std::fs::copy(&path, dir().join("config.json.bad"));
+                let (c, bad) = Self::parse_by_field(&s);
+                log(format!("config.json не читается целиком, сброшены: {}; копия в config.json.bad", bad.join(", ")));
+                c
+            }),
+            Err(_) => Config::default(),
+        };
         c.token = c.token_sealed.as_deref().and_then(crate::secret::open);
         c.refresh_token = c.refresh_sealed.as_deref().and_then(crate::secret::open);
         if c.token.is_none() && c.token_sealed.is_some() {
@@ -207,6 +231,30 @@ impl Config {
             c.save();
         }
         c
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        serde_json::from_str(s).ok()
+    }
+
+    /// Настройки по одной: одно нечитаемое значение (например, `null` вместо числа после NaN)
+    /// сбрасывает только себя, а не весь файл вместе со входом. Второе — имена сброшенных.
+    fn parse_by_field(s: &str) -> (Self, Vec<String>) {
+        let Ok(serde_json::Value::Object(file)) = serde_json::from_str(s) else { return (Config::default(), vec!["всё".into()]) };
+        let Ok(mut merged) = serde_json::to_value(Config::default()) else { return (Config::default(), vec!["всё".into()]) };
+        let mut c = Config::default();
+        let mut bad = Vec::new();
+        for (key, value) in file {
+            let mut probe = merged.clone();
+            probe[key.as_str()] = value;
+            if let Ok(parsed) = serde_json::from_value::<Config>(probe.clone()) {
+                merged = probe;
+                c = parsed;
+            } else {
+                bad.push(key);
+            }
+        }
+        (c, bad)
     }
 
     pub fn save(&self) {
@@ -300,3 +348,17 @@ pub fn now_secs() -> u64 {
         .unwrap_or(0)
 }
 
+
+#[cfg(test)]
+#[test]
+fn bad_value_resets_only_itself() {
+    let s = r#"{"volume": null, "theme": "dark", "crossfade_secs": 6, "eq_gains": [1.0]}"#;
+    assert!(Config::parse(s).is_none());
+    let (c, mut bad) = Config::parse_by_field(s);
+    bad.sort();
+    assert_eq!(bad, ["eq_gains", "volume"]);
+    assert_eq!(c.theme, "dark");
+    assert_eq!(c.crossfade_secs, 6);
+    assert_eq!(c.volume, Config::default().volume);
+    assert_eq!(c.eq_gains, Config::default().eq_gains);
+}

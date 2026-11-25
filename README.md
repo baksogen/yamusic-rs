@@ -11,6 +11,7 @@
 ![macOS 12+ universal](https://img.shields.io/badge/macOS-12%2B%20universal-2b2b30?labelColor=1c1c1f)
 ![Linux бета](https://img.shields.io/badge/Linux-%D0%B1%D0%B5%D1%82%D0%B0-2b2b30?labelColor=1c1c1f)
 ![Android бета](https://img.shields.io/badge/Android-%D0%B1%D0%B5%D1%82%D0%B0-2b2b30?labelColor=1c1c1f)
+[![Поддержать](https://img.shields.io/badge/%D0%BF%D0%BE%D0%B4%D0%B4%D0%B5%D1%80%D0%B6%D0%B0%D1%82%D1%8C-CloudTips-ffd60a?labelColor=1c1c1f)](https://pay.cloudtips.ru/p/befb620d)
 [![GPL-3.0](https://img.shields.io/badge/%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F-GPL--3.0-2b2b30?labelColor=1c1c1f)](LICENSE)
 
 [Скачать](https://github.com/SpolzerMod/yamusic-rs/releases/latest) ·
@@ -323,6 +324,11 @@ API Яндекса неофициальный и может меняться б�
 
 ## Как помочь
 
+### Поддержать рублём
+
+RS бесплатный и без рекламы. Если он вам пригодился, можно закинуть на развитие через
+[CloudTips](https://pay.cloudtips.ru/p/befb620d), от 49 ₽. Деньги пойдут на RS и следующие открытые проекты.
+
 ### Сообщить об ошибке
 
 Откройте [issue](https://github.com/SpolzerMod/yamusic-rs/issues/new/choose) и напишите:
@@ -533,6 +539,7 @@ uses about 65 MB in one process.
   `%APPDATA%\yamusic-rs\log.txt` (`~/.config/yamusic-rs/log.txt` on Linux). Security
   problems go to [Report a vulnerability](https://github.com/SpolzerMod/yamusic-rs/security/advisories/new),
   not to public issues.
+- **Support:** if the app is useful to you, you can [send a tip via CloudTips](https://pay.cloudtips.ru/p/befb620d).
 
 The code is released under the [GNU GPL v3](LICENSE): forks you distribute must stay open source
 under the same license. This project is not affiliated with or endorsed by Yandex. All trademarks
