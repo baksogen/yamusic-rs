@@ -22,11 +22,19 @@ cargo test --release -- --ignored                  # сетевые/внешни
 - Релиз: тег `vX.Y.Z` должен совпадать с `version` в `Cargo.toml`; файлы собирает `.github/workflows/build.yml`.
 - **Перед пушем тега релиза ОБЯЗАТЕЛЬНО проверить:**
   1. Версия в `Cargo.toml` совпадает с тегом (без префикса `v`)
-  2. Workflow `.github/workflows/build.yml` содержит jobs для ВСЕХ платформ: `windows`, `linux`, `linux-arm64`, `macos`, `android`
-  3. Job `release` зависит от всех платформ: `needs: [windows, linux, linux-arm64, macos, android]`
+  2. Workflow `.github/workflows/build.yml` содержит jobs: `windows`, `linux`, `linux-arm64`, `macos` — и НЕ содержит `android`
+  3. Job `release` зависит от них: `needs: [windows, linux, linux-arm64, macos]`
   4. Локально проходят: `cargo clippy --release --all-targets -- -D warnings` и `cargo test --release`
   5. macOS: `tools/make_dmg.sh` работает (проверяется локально на маке)
-  6. Android: `tools/apk.sh` валиден (собирается на Linux)
+
+## Форк
+
+Это форк `SpolzerMod/yamusic-rs` (remote `upstream`); наш репозиторий — `origin` (`baksogen/yamusic-rs`).
+
+- **Нужны только Windows, Linux и macOS.** Android-сборка не нужна: задания `android` в `build.yml` нет и в `release.needs` его нет. Папку `android/` не трогаем и не удаляем — это код оригинала, удаление даст конфликты на каждом мерже.
+- **Мерж с оригиналом:** изменения в `android/` принимаются как есть; если мерж вернул задание `android` в `build.yml` — убрать его снова. Версию в `Cargo.toml` после мержа выставить по правилу ниже (мерж затирает её версией оригинала).
+- **Версии и теги.** Взяли версию оригинала `X.Y.Z`, она собирается без правок и своих изменений в форке нет — версия и тег `vX.Y.Z`, как у оригинала. Иначе (пришлось чинить сборку или поверх есть свои изменения кода) — `X.Y.Z+fork.N` и тег `vX.Y.Z+fork.N`; `N` растёт с каждым нашим релизом (fork.1, fork.2…) и начинается заново со следующей версией оригинала. Правки только CI и `.md` своими изменениями не считаются. Пока порт на macOS (`src/mac/`, `src/sys/macos.rs`, `tools/make_*.sh`) есть только у нас, релизы фактически всегда `+fork.N`. Номер, уже запушенный тегом на GitHub, не переиспользуется — даже если сборка упала, берём следующий.
+- Обновлялка (`update.rs`, `parse_version`) считает `X.Y.Z+fork.N` новее `X.Y.Z`, а `fork.2` новее `fork.1`.
 
 ## Архитектура
 

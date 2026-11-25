@@ -48,9 +48,15 @@ fn client() -> Result<reqwest::blocking::Client, String> {
 }
 
 /// «v1.2.3» / «1.2.3» → (1, 2, 3). Пре-релизы (`/releases/latest` их и так не отдаёт) не нужны.
-fn parse_version(s: &str) -> Option<(u32, u32, u32)> {
-    let mut it = s.trim().trim_start_matches('v').split(['.', '-']).map(|p| p.parse::<u32>());
-    Some((it.next()?.ok()?, it.next()?.ok()?, it.next().unwrap_or(Ok(0)).ok()?))
+/// «1.1.8» или сборка форка «1.1.8+fork.2»: форк новее той же версии оригинала, fork.2 новее fork.1.
+fn parse_version(s: &str) -> Option<(u32, u32, u32, u32)> {
+    let s = s.trim().trim_start_matches('v');
+    let (base, fork) = match s.split_once("+fork.") {
+        Some((base, n)) => (base, n.parse().ok()?),
+        None => (s, 0),
+    };
+    let mut it = base.split(['.', '-']).map(|p| p.parse::<u32>());
+    Some((it.next()?.ok()?, it.next()?.ok()?, it.next().unwrap_or(Ok(0)).ok()?, fork))
 }
 
 /// Последний релиз, если он новее запущенной версии.
@@ -169,10 +175,15 @@ mod tests {
 
     #[test]
     fn versions() {
-        assert_eq!(parse_version("v0.2.0"), Some((0, 2, 0)));
-        assert_eq!(parse_version("1.10"), Some((1, 10, 0)));
+        assert_eq!(parse_version("v0.2.0"), Some((0, 2, 0, 0)));
+        assert_eq!(parse_version("1.10"), Some((1, 10, 0, 0)));
         assert!(parse_version("v0.10.0") > parse_version("0.9.9"));
         assert_eq!(parse_version("latest"), None);
+        assert_eq!(parse_version("v1.1.8+fork.2"), Some((1, 1, 8, 2)));
+        assert!(parse_version("1.1.8+fork.1") > parse_version("1.1.8"));
+        assert!(parse_version("1.1.8+fork.2") > parse_version("1.1.8+fork.1"));
+        assert!(parse_version("1.1.9") > parse_version("1.1.8+fork.5"));
+        assert_eq!(parse_version("1.1.8+fork.x"), None);
     }
 
     #[test]
