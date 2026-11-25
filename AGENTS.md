@@ -20,6 +20,13 @@ cargo test --release -- --ignored                  # сетевые/внешни
 - Android: `tools/apk.sh` (Linux/CI, нужны `ANDROID_HOME`, `JAVA_HOME`) или `android/build.ps1`, без Gradle.
 - Если Skia не скачивается: `SKIA_BINARIES_URL=file:///путь/к/skia.tar.gz cargo build --release`.
 - Релиз: тег `vX.Y.Z` должен совпадать с `version` в `Cargo.toml`; файлы собирает `.github/workflows/build.yml`.
+- **Перед пушем тега релиза ОБЯЗАТЕЛЬНО проверить:**
+  1. Версия в `Cargo.toml` совпадает с тегом (без префикса `v`)
+  2. Workflow `.github/workflows/build.yml` содержит jobs для ВСЕХ платформ: `windows`, `linux`, `linux-arm64`, `macos`, `android`
+  3. Job `release` зависит от всех платформ: `needs: [windows, linux, linux-arm64, macos, android]`
+  4. Локально проходят: `cargo clippy --release --all-targets -- -D warnings` и `cargo test --release`
+  5. macOS: `tools/make_dmg.sh` работает (проверяется локально на маке)
+  6. Android: `tools/apk.sh` валиден (собирается на Linux)
 
 ## Архитектура
 
