@@ -453,6 +453,7 @@ struct ListPlay {
 struct Engine {
     tx: Sender<Msg>,
     bg: Sender<Job>,
+    ynison: Sender<(Api, crate::ynison::Now)>,
     shared: Arc<Mutex<Shared>>,
     likes: Likes,
     // Запоминаем подтверждённые реакции, чтобы запоздалый список с сервера их не заменил.
@@ -556,9 +557,26 @@ impl Engine {
                 }
             })
             .expect("bg thread");
+        // Ynison отдельно от bg: медленный сервер не задерживает лайки и фидбек.
+        let (ynison, ynison_rx) = mpsc::channel::<(Api, crate::ynison::Now)>();
+        thread::Builder::new()
+            .name("ynison".into())
+            .spawn(move || {
+                while let Ok(mut item) = ynison_rx.recv() {
+                    // Пока шла отправка, могли прийти новые состояния: нужно только последнее.
+                    while let Ok(newer) = ynison_rx.try_recv() {
+                        item = newer;
+                    }
+                    if let Err(e) = crate::ynison::publish(item.0.token(), &crate::ynison::device_id(), &item.1) {
+                        log(format!("ynison: {e}"));
+                    }
+                }
+            })
+            .expect("ynison thread");
         Engine {
             tx,
             bg,
+            ynison,
             shared,
             likes,
             reaction_writes: HashMap::new(),
@@ -1942,11 +1960,7 @@ impl Engine {
         self.ynison_due = None;
         self.ynison_at = Instant::now();
         let (Some(api), Some(now)) = (self.api.clone(), self.ynison_now()) else { return };
-        let _ = self.bg.send(Box::new(move || {
-            if let Err(e) = crate::ynison::publish(api.token(), &crate::ynison::device_id(), &now) {
-                log(format!("ynison: {e}"));
-            }
-        }));
+        let _ = self.ynison.send((api, now));
     }
 
     fn ynison_now(&self) -> Option<crate::ynison::Now> {

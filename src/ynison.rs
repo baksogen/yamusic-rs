@@ -2,7 +2,8 @@
 //! трек и позицию. По нему приложение продолжает с того места, где остановились здесь или в
 //! другом клиенте.
 
-use std::net::TcpStream;
+use std::net::{TcpStream, ToSocketAddrs};
+use std::time::Duration;
 
 use serde_json::{json, Value};
 use tungstenite::client::IntoClientRequest;
@@ -13,6 +14,9 @@ use tungstenite::{Message, WebSocket};
 use crate::api::Res;
 
 const REDIRECT: &str = "wss://ynison.music.yandex.ru/redirector.YnisonRedirectService/GetRedirectToYnison";
+
+/// Без таймаутов зависший сервер держал бы поток отправки и выход из приложения.
+const TIMEOUT: Duration = Duration::from_secs(10);
 
 type Socket = WebSocket<MaybeTlsStream<TcpStream>>;
 
@@ -173,7 +177,13 @@ fn open(url: &str, token: &str, protocol: &Value) -> Res<Socket> {
     h.insert("Sec-WebSocket-Protocol", header(format!("Bearer, v2, {protocol}"))?);
     h.insert("Origin", HeaderValue::from_static("https://music.yandex.ru"));
     h.insert("Authorization", header(format!("OAuth {token}"))?);
-    let (ws, _) = tungstenite::connect(req).map_err(|e| format!("ynison: {e}"))?;
+    let host = req.uri().host().ok_or("ynison: нет host")?;
+    let port = req.uri().port_u16().unwrap_or(443);
+    let addr = (host, port).to_socket_addrs().map_err(|e| format!("ynison: {e}"))?.next().ok_or("ynison: адрес не найден")?;
+    // Таймауты до рукопожатия: TLS и ответ сервера тоже не должны висеть вечно.
+    let tcp = TcpStream::connect_timeout(&addr, TIMEOUT).map_err(|e| format!("ynison: {e}"))?;
+    tcp.set_read_timeout(Some(TIMEOUT)).and_then(|_| tcp.set_write_timeout(Some(TIMEOUT))).map_err(|e| format!("ynison: {e}"))?;
+    let (ws, _) = tungstenite::client_tls(req, tcp).map_err(|e| format!("ynison: {e}"))?;
     Ok(ws)
 }
 
