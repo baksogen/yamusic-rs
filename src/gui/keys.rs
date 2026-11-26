@@ -169,10 +169,21 @@ fn default_bindings() -> Bindings {
 /// Назначения из config.json поверх стандартных.
 fn bindings_from(saved: &BTreeMap<String, Vec<String>>) -> Bindings {
     let mut b = default_bindings();
+    let mut from_saved = Vec::new();
     for (row, l) in LISTED.iter().enumerate() {
         let Some(keys) = saved.get(l.1) else { continue };
         for (slot, name) in keys.iter().enumerate().take(b[row].len()) {
             b[row][slot] = key_by_name(name);
+            from_saved.push((row, slot));
+        }
+    }
+    // Новая клавиша по умолчанию (Пробел) не перебивает ту, что пользователь уже назначил сам.
+    let user_keys: Vec<KeyCode> = from_saved.iter().filter_map(|&(r, s)| b[r][s]).collect();
+    for (row, keys) in b.iter_mut().enumerate() {
+        for (slot, k) in keys.iter_mut().enumerate() {
+            if !from_saved.contains(&(row, slot)) && k.is_some_and(|k| user_keys.contains(&k)) {
+                *k = None;
+            }
         }
     }
     b
@@ -542,6 +553,13 @@ mod tests {
         // Старый конфиг с одной клавишей паузы получает Пробел во вторую ячейку.
         let old = BTreeMap::from([("play".to_string(), vec!["KeyK".to_string()])]);
         assert_eq!(bindings_from(&old)[0], vec![Some(KeyCode::KeyK), Some(KeyCode::Space)]);
+        // Свой Пробел у другого действия сохраняется, у паузы ячейка пустеет.
+        let own = BTreeMap::from([("next".to_string(), vec!["Space".to_string()])]);
+        let b = bindings_from(&own);
+        assert_eq!(b[0], vec![Some(KeyCode::KeyK), None]);
+        BINDINGS.set(b);
+        assert_eq!(action(KeyCode::Space, ModifiersState::empty(), false), Some(Action::Next));
+        BINDINGS.set(default_bindings());
     }
 
     #[test]

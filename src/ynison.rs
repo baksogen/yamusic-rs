@@ -179,9 +179,14 @@ fn open(url: &str, token: &str, protocol: &Value) -> Res<Socket> {
     h.insert("Authorization", header(format!("OAuth {token}"))?);
     let host = req.uri().host().ok_or("ynison: нет host")?;
     let port = req.uri().port_u16().unwrap_or(443);
-    let addr = (host, port).to_socket_addrs().map_err(|e| format!("ynison: {e}"))?.next().ok_or("ynison: адрес не найден")?;
-    // Таймауты до рукопожатия: TLS и ответ сервера тоже не должны висеть вечно.
-    let tcp = TcpStream::connect_timeout(&addr, TIMEOUT).map_err(|e| format!("ynison: {e}"))?;
+    // Таймауты до рукопожатия: TLS и ответ сервера тоже не должны висеть вечно (DNS — без лимита).
+    // Адреса по очереди, как tungstenite::connect: недоступный IPv6 не мешает рабочему IPv4.
+    let tcp = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| format!("ynison: {e}"))?
+        .find_map(|a| TcpStream::connect_timeout(&a, TIMEOUT).ok())
+        .ok_or("ynison: не удалось подключиться")?;
+    let _ = tcp.set_nodelay(true);
     tcp.set_read_timeout(Some(TIMEOUT)).and_then(|_| tcp.set_write_timeout(Some(TIMEOUT))).map_err(|e| format!("ynison: {e}"))?;
     let (ws, _) = tungstenite::client_tls(req, tcp).map_err(|e| format!("ynison: {e}"))?;
     Ok(ws)

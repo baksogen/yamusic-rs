@@ -2545,6 +2545,8 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
     slint::run_event_loop_until_quit()?;
     player.leave();
     save_places(&ui, &places);
+    // save_places не пишет при свёрнутом окне, а громкость сохраняется с задержкой.
+    with_ctx(|c| c.st.borrow().cfg.save());
     sys::cleanup();
     crate::config::gpu_confirmed();
     // Фоновые потоки (аудио, сеть, обложки) не ждём: иначе процесс может остаться
