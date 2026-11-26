@@ -43,7 +43,7 @@ impl Action {
 /// Строки окна «Горячие клавиши» в порядке оригинала: действие, имя в config.json, подпись и
 /// клавиши по умолчанию. Сколько клавиш по умолчанию, столько ячеек в строке. Esc не меняется.
 const LISTED: [(Action, &str, &str, &[KeyCode]); 13] = [
-    (Action::TogglePlay, "play", "Включить музыку/поставить на паузу", &[KeyCode::KeyK]),
+    (Action::TogglePlay, "play", "Включить музыку/поставить на паузу", &[KeyCode::KeyK, KeyCode::Space]),
     (Action::ToggleMute, "mute", "Отключить/включить звук", &[KeyCode::KeyM]),
     (Action::Forward, "forward", "Промотать вперед", &[KeyCode::ArrowRight, KeyCode::KeyL]),
     (Action::Backward, "backward", "Промотать назад", &[KeyCode::ArrowLeft, KeyCode::KeyJ]),
@@ -492,8 +492,9 @@ mod tests {
         for (code, a) in table {
             assert_eq!(action(code, none, false), Some(a), "{code:?}");
         }
-        // Пробел у оригинала не занят, с модификаторами ничего не срабатывает.
-        assert_eq!(action(KeyCode::Space, none, false), None);
+        // Пробел — наше дополнение к K (у оригинала не занят); с модификаторами ничего не срабатывает.
+        assert_eq!(action(KeyCode::Space, none, false), Some(Action::TogglePlay));
+        assert_eq!(action(KeyCode::Space, ModifiersState::CONTROL, false), None);
         for m in [ModifiersState::CONTROL, ModifiersState::SHIFT, ModifiersState::ALT, ModifiersState::SUPER] {
             assert_eq!(action(KeyCode::KeyK, m, false), None);
             assert_eq!(action(KeyCode::ArrowRight, m, false), None);
@@ -531,13 +532,16 @@ mod tests {
         let mut b = default_bindings();
         // K у «Лайка» (строка 6) снимается с паузы (строка 0).
         assign(&mut b, 6, 0, KeyCode::KeyK);
-        assert_eq!(b[0], vec![None]);
+        assert_eq!(b[0], vec![None, Some(KeyCode::Space)]);
         assert_eq!(b[6], vec![Some(KeyCode::KeyK)]);
         let saved = bindings_to_config(&b);
-        assert_eq!(saved["play"], vec![String::new()]);
+        assert_eq!(saved["play"], vec![String::new(), "Space".to_string()]);
         assert_eq!(bindings_from(&saved), b);
         // Чего нет в настройках, остаётся по умолчанию.
         assert_eq!(bindings_from(&BTreeMap::new()), default_bindings());
+        // Старый конфиг с одной клавишей паузы получает Пробел во вторую ячейку.
+        let old = BTreeMap::from([("play".to_string(), vec!["KeyK".to_string()])]);
+        assert_eq!(bindings_from(&old)[0], vec![Some(KeyCode::KeyK), Some(KeyCode::Space)]);
     }
 
     #[test]
