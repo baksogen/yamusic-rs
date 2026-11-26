@@ -2090,12 +2090,14 @@ pub fn run(start_hidden: bool) -> Result<(), slint::PlatformError> {
     let p = player.clone();
     app.on_toggle_shuffle(move || p.send(Cmd::Shuffle(!p.state().shuffle)));
     let p = player.clone();
+    // Ползунок и колёсико шлют десятки значений подряд: на диск пишем раз, после паузы.
+    // При выходе конфиг сохраняет save_places.
+    let volume_save = slint::Timer::default();
     app.on_set_volume(move |v| {
         p.send(Cmd::Volume(v));
-        with_ctx(|c| {
-            let mut st = c.st.borrow_mut();
-            st.cfg.volume = v;
-            st.cfg.save();
+        with_ctx(|c| c.st.borrow_mut().cfg.volume = v);
+        volume_save.start(slint::TimerMode::SingleShot, Duration::from_millis(500), || {
+            with_ctx(|c| c.st.borrow().cfg.save())
         });
     });
     app.on_format_time(|s| mmss(s).into());
