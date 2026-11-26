@@ -23,7 +23,7 @@ cargo test --release -- --ignored                  # сетевые/внешни
 - **Перед пушем тега релиза ОБЯЗАТЕЛЬНО проверить:**
   1. Версия в `Cargo.toml` совпадает с тегом (без префикса `v`)
   2. Workflow `.github/workflows/build.yml` содержит jobs: `windows`, `linux`, `linux-arm64`, `macos` — и НЕ содержит `android`
-  3. Job `release` зависит от них: `needs: [windows, linux, linux-arm64, macos]`
+  3. Job `release` зависит от них: `needs: [windows, linux, linux-arm64, macos]`, но в `if` требует успеха только `windows`, `linux`, `linux-arm64` и не-`failure` у `macos` (через `always()`). Если GitHub не выдал мак-машину (job `macos` cancelled) — релиз выходит без мака, потом «Re-run failed jobs» догружает файлы мака в тот же релиз
   4. Локально проходят: `cargo clippy --release --all-targets -- -D warnings` и `cargo test --release`
   5. macOS: `tools/make_dmg.sh` работает (проверяется локально на маке)
 

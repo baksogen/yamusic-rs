@@ -12,6 +12,46 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Мак первым в файле: его очередь машин самая долгая.
+  # Универсальный бинарник (aarch64 + x86_64) через lipo: один файл работает на любом Маке.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+
+      # Гарантируем, что x86_64 таргет установлен и доступен (dtolnay/rust-toolchain
+      # на macOS иногда не кладёт его в PATH первым).
+      - name: Ensure x86_64 target
+        run: |
+          rustup target add x86_64-apple-darwin || true
+          rustc --print target-libdir --target x86_64-apple-darwin
+
+      - run: cargo clippy --release --all-targets -- -D warnings
+      - run: cargo test --release
+      # Обе арки, lipo, .app с ad-hoc подписью и .dmg с симлинком /Applications.
+      - name: Универсальный .app и .dmg
+        run: |
+          tools/make_dmg.sh
+          cp target/release/yamusic-rs-universal yamusic-rs-macos-universal
+          lipo -info yamusic-rs-macos-universal
+          shasum -a 256 yamusic-rs-macos-universal target/release/yamusic-rs-*.dmg
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-universal
+          path: yamusic-rs-macos-universal
+          archive: false
+      - uses: actions/upload-artifact@v7
+        with:
+          name: macos-dmg
+          path: target/release/yamusic-rs-*.dmg
+          archive: false
+
   windows:
     runs-on: windows-latest
     steps:
@@ -148,47 +188,11 @@ jobs:
           path: ${{ steps.pkg.outputs.rpm }}
           archive: false
 
-  # Универсальный бинарник (aarch64 + x86_64) через lipo: один файл работает на любом Маке.
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin, x86_64-apple-darwin
-      - uses: Swatinem/rust-cache@v2
-
-      # Гарантируем, что x86_64 таргет установлен и доступен (dtolnay/rust-toolchain
-      # на macOS иногда не кладёт его в PATH первым).
-      - name: Ensure x86_64 target
-        run: |
-          rustup target add x86_64-apple-darwin || true
-          rustc --print target-libdir --target x86_64-apple-darwin
-
-      - run: cargo clippy --release --all-targets -- -D warnings
-      - run: cargo test --release
-      # Обе арки, lipo, .app с ad-hoc подписью и .dmg с симлинком /Applications.
-      - name: Универсальный .app и .dmg
-        run: |
-          tools/make_dmg.sh
-          cp target/release/yamusic-rs-universal yamusic-rs-macos-universal
-          lipo -info yamusic-rs-macos-universal
-          shasum -a 256 yamusic-rs-macos-universal target/release/yamusic-rs-*.dmg
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: macos-universal
-          path: yamusic-rs-macos-universal
-          archive: false
-      - uses: actions/upload-artifact@v7
-        with:
-          name: macos-dmg
-          path: target/release/yamusic-rs-*.dmg
-          archive: false
-
+  # Мак ждём, но не требуем: GitHub бывает не выдаёт macOS-машину (job отменяется, не падает). Тогда релиз
+  # выходит без мака, а «Re-run failed jobs» досборкой мака догружает его файлы в тот же релиз.
+  # Проверка тега на версию — в job windows, поэтому его успех обязателен.
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: ${{ always() && startsWith(github.ref, 'refs/tags/v') && needs.windows.result == 'success' && needs.linux.result == 'success' && needs.linux-arm64.result == 'success' && needs.macos.result != 'failure' }}
     needs: [windows, linux, linux-arm64, macos]
     runs-on: ubuntu-latest
     permissions:
@@ -203,4 +207,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "Яндекс Музыка RS ${GITHUB_REF_NAME#v}" --generate-notes
+        run: |
+          if ! have=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name'); then
+            gh release create "$GITHUB_REF_NAME" dist/* --title "Яндекс Музыка RS ${GITHUB_REF_NAME#v}" --generate-notes
+            exit
+          fi
+          # Перезапуск: догружаем только недостающее, yamusic-rs.exe не пропадает из релиза ни на миг.
+          for f in dist/*; do
+            grep -qxF "$(basename "$f")" <<<"$have" || gh release upload "$GITHUB_REF_NAME" "$f"
+          done
