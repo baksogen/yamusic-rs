@@ -3,6 +3,7 @@
 
 mod objc;
 pub mod app;
+mod artwork;
 pub mod media;
 pub mod menu;
 pub mod window;

@@ -159,6 +159,11 @@ thread_local! {
     static LAST: RefCell<Option<Last>> = const { RefCell::new(None) };
 }
 
+/// Пересобрать карточку на следующем sync_player (обложка докачалась).
+pub(super) fn refresh() {
+    LAST.with(|l| l.borrow_mut().take());
+}
+
 /// Обновить карточку в Пункте управления. Звать из sync_player (главный поток).
 /// Пересобираем словарь при смене трека/состояния и раз в 2 секунды для позиции.
 pub fn now_playing(track: Option<&Track>, playing: bool, position: f32, duration: f32) {
@@ -188,11 +193,12 @@ pub fn now_playing(track: Option<&Track>, playing: bool, position: f32, duration
         if !fresh {
             return;
         }
+        super::artwork::want(t);
         let nsstring = objc_getClass(c("NSString").as_ptr());
         let nsnumber = objc_getClass(c("NSNumber").as_ptr());
         // Ключи nowPlayingInfo — строковые значения констант MPMediaItemProperty* /
         // MPNowPlayingInfoProperty* (создаём сами, чтобы не зависеть от extern-символов).
-        let keys = [
+        let mut keys = vec![
             msg_string(nsstring, "title"),
             msg_string(nsstring, "artist"),
             msg_string(nsstring, "albumTitle"),
@@ -202,7 +208,7 @@ pub fn now_playing(track: Option<&Track>, playing: bool, position: f32, duration
             msg_string(nsstring, "MPNowPlayingInfoPropertyElapsedPlaybackTime"),
             msg_string(nsstring, "MPNowPlayingInfoPropertyPlaybackRate"),
         ];
-        let values = [
+        let mut values = vec![
             msg_string(nsstring, &t.title),
             msg_string(nsstring, &t.artists),
             msg_string(nsstring, &t.album_title),
@@ -210,6 +216,10 @@ pub fn now_playing(track: Option<&Track>, playing: bool, position: f32, duration
             msg_number(nsnumber, position as f64),
             msg_number(nsnumber, if playing { 1.0 } else { 0.0 }),
         ];
+        if let Some(art) = super::artwork::current(t) {
+            keys.push(msg_string(nsstring, "artwork"));
+            values.push(art);
+        }
         let dict = msg_dict(objc_getClass(c("NSDictionary").as_ptr()), values.as_ptr(), keys.as_ptr(), keys.len() as c_ulong);
         msg_set_id(center, "setNowPlayingInfo:", dict);
         msg_set_ulong(center, "setPlaybackState:", if playing { 1 } else { 2 });
