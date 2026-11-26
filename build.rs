@@ -58,8 +58,10 @@ mod resources {
     fn version_info() -> String {
         let version = std::env::var("CARGO_PKG_VERSION").unwrap();
         let exe = std::env::var("CARGO_PKG_NAME").unwrap();
-        let nums: Vec<&str> = version.split(['.', '-']).take(3).collect();
-        let num = format!("{},0", nums.join(","));
+        // FILEVERSION — только четыре числа: «1.1.9+fork.2» → 1,1,9,2. Иначе rc.exe падает.
+        let (base, fork) = version.split_once("+fork.").unwrap_or((&version, "0"));
+        let nums: Vec<&str> = base.split(['.', '-', '+']).take(3).collect();
+        let num = format!("{},{}", nums.join(","), fork.parse::<u16>().unwrap_or(0));
         format!(
             r#"1 VERSIONINFO
 FILEVERSION {num}
