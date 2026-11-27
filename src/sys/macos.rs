@@ -93,6 +93,17 @@ pub fn system_light_theme() -> bool {
     Command::new("defaults").args(["read", "-g", "AppleInterfaceStyle"]).output().is_ok_and(|o| !o.status.success())
 }
 
+/// Языки системы по порядку («ru-MD», «en-US»): `defaults` печатает их списком в кавычках.
+pub fn preferred_languages() -> Vec<String> {
+    let Ok(out) = Command::new("defaults").args(["read", "-g", "AppleLanguages"]).output() else { return Vec::new() };
+    String::from_utf8_lossy(&out.stdout).split('"').skip(1).step_by(2).map(String::from).collect()
+}
+
+/// Шаг колёсика на macOS задаёт система (ускорение прокрутки): остаётся шагом Slint.
+pub fn wheel_px(_horizontal: bool) -> Option<f32> {
+    None
+}
+
 fn home() -> PathBuf {
     PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| ".".into()))
 }
